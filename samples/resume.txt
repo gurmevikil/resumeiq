@@ -1,0 +1,5 @@
+Python backend developer with experience building REST APIs using FastAPI.
+Developed an AI resume analyzer that used NLP preprocessing, keyword extraction,
+TF-IDF vectorization, Scikit-learn, and cosine similarity to compare resumes
+with job descriptions. Optimized backend services for candidate evaluation,
+resume-job matching, and recommendation generation.
