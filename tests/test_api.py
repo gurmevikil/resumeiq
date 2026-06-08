@@ -10,26 +10,51 @@ def test_health_endpoint() -> None:
     response = client.get("/health")
 
     assert response.status_code == 200
-    assert response.json()["status"] == "ok"
+    assert response.json() == {"status": "ok", "service": "rollback-cicd"}
 
 
-def test_analyze_endpoint() -> None:
+def test_deployments_endpoint_returns_history() -> None:
+    response = client.get("/deployments")
+
+    body = response.json()
+
+    assert response.status_code == 200
+    assert len(body) >= 2
+    assert body[0]["version"] == "v1.4.2"
+
+
+def test_rollback_plan_endpoint() -> None:
     response = client.post(
-        "/analyze",
+        "/rollback/plan",
         json={
-            "resume_text": (
-                "Python backend developer with FastAPI, NLP, machine learning, "
-                "Scikit-learn, REST APIs, and similarity scoring experience."
-            ),
-            "job_description": (
-                "Hiring Python developer with FastAPI, NLP, Scikit-learn, "
-                "REST APIs, keyword extraction, and resume matching experience."
-            ),
+            "failed_version": "v1.4.2",
+            "strategy": "canary",
+            "reason": "The new version failed smoke tests.",
+            "requested_by": "github-actions",
         },
     )
 
     body = response.json()
 
     assert response.status_code == 200
-    assert body["match_score"] > 0
-    assert "recommendations" in body
+    assert body["target_version"] == "v1.4.1"
+    assert body["strategy"] == "canary"
+
+
+def test_rollback_execute_endpoint() -> None:
+    response = client.post(
+        "/rollback/execute",
+        json={
+            "failed_version": "v1.4.2",
+            "target_version": "v1.4.1",
+            "strategy": "immediate",
+            "reason": "Production error rate exceeded rollback threshold.",
+            "requested_by": "release-bot",
+        },
+    )
+
+    body = response.json()
+
+    assert response.status_code == 200
+    assert body["status"] == "completed"
+    assert body["active_version"] == "v1.4.1"

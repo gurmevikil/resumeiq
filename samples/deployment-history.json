@@ -1,0 +1,20 @@
+[
+  {
+    "version": "v1.4.2",
+    "image": "registry.example.com/rollback-demo:v1.4.2",
+    "status": "failed",
+    "deployed_at": "2026-06-09T01:10:00Z",
+    "smoke_tests_passed": false,
+    "error_rate": 14.2,
+    "notes": "Checkout latency regression detected after release."
+  },
+  {
+    "version": "v1.4.1",
+    "image": "registry.example.com/rollback-demo:v1.4.1",
+    "status": "healthy",
+    "deployed_at": "2026-06-08T18:35:00Z",
+    "smoke_tests_passed": true,
+    "error_rate": 0.8,
+    "notes": "Last known stable production release."
+  }
+]

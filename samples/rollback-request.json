@@ -1,0 +1,7 @@
+{
+  "failed_version": "v1.4.2",
+  "target_version": "v1.4.1",
+  "strategy": "immediate",
+  "reason": "Smoke tests failed and production error rate exceeded the rollback threshold.",
+  "requested_by": "github-actions"
+}

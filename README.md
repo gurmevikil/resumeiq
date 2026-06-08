@@ -1,32 +1,62 @@
-# ResumeIQ - AI Resume Analyzer
+# Rollback CI/CD Automation
 
-ResumeIQ is an AI-powered resume analysis backend built with Python, FastAPI, NLP, Scikit-learn, and REST APIs. It compares a resume against a job description, calculates an ATS-style match score, extracts important keywords, identifies missing skills, and generates practical improvement recommendations.
+Rollback CI/CD Automation is a FastAPI project that demonstrates how a delivery pipeline can detect a bad release, select the last stable deployment, generate a rollback plan, and execute a controlled rollback. It is designed as a practical DevOps portfolio project with application code, automated tests, Docker support, a GitHub Actions workflow, sample rollback payloads, and clear documentation.
+
+## Project Description
+
+Modern CI/CD pipelines should not stop at building and deploying code. They also need a recovery path when a deployment causes failed smoke tests, high error rates, latency spikes, or broken user journeys. This project models that recovery process with a small rollback service.
+
+The API stores a sample deployment history, identifies healthy and failed versions, creates rollback commands for different strategies, and records the active version after rollback execution. The included workflow shows the full delivery path:
+
+1. Run automated tests.
+2. Build the Docker image.
+3. Deploy the new version.
+4. Run smoke checks.
+5. Trigger rollback automatically if deployment verification fails.
 
 ## Features
 
-- Upload and analyze resumes through REST APIs
-- Supports `.txt`, `.pdf`, and `.docx` resume files
-- Cleans and normalizes resume/job-description text
-- Extracts important job keywords with TF-IDF
-- Calculates resume-job similarity with cosine similarity
-- Produces ATS-style match score, matched keywords, missing keywords, and recommendations
-- Includes sample data and automated tests
+- FastAPI backend for deployment and rollback operations
+- Deployment history with version, image, status, smoke-test result, and error-rate data
+- Automatic rollback target selection using the latest healthy release
+- Rollback planning endpoint that returns commands, checks, and estimated duration
+- Rollback execution endpoint that updates the active deployment
+- Supports immediate, blue-green, and canary rollback strategies
+- Dockerfile for containerized deployment
+- GitHub Actions workflow for test, build, deploy, smoke test, and rollback stages
+- Shell rollback script that mirrors Kubernetes rollback commands
+- Unit and API tests with Pytest
+
+## Tech Stack
+
+- Python 3.12
+- FastAPI
+- Pydantic
+- Pytest
+- Docker
+- GitHub Actions
+- Kubernetes-style deployment commands
 
 ## Project Structure
 
 ```text
+.github/
+  workflows/
+    cicd-rollback.yml      CI/CD workflow with rollback stage
 app/
-  main.py                 FastAPI app and API routes
-  models.py               Request and response schemas
+  main.py                  FastAPI routes
+  models.py                API request and response schemas
   services/
-    analyzer.py           Resume analysis workflow
-    text_processing.py    Text extraction and NLP preprocessing
+    rollback.py            Rollback planning and execution logic
 samples/
-  job_description.txt     Example job description
-  resume.txt              Example resume
+  deployment-history.json  Example deployment history
+  rollback-request.json    Example rollback request payload
+scripts/
+  rollback.sh              Rollback command script for CI/CD
 tests/
-  test_analyzer.py        Unit tests for analysis logic
-  test_api.py             API tests
+  test_api.py              API endpoint tests
+  test_rollback.py         Rollback service tests
+Dockerfile
 requirements.txt
 ```
 
@@ -44,7 +74,7 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-Open the docs at:
+Open the API docs:
 
 ```text
 http://127.0.0.1:8000/docs
@@ -58,41 +88,54 @@ http://127.0.0.1:8000/docs
 GET /health
 ```
 
-### Analyze Plain Text
+### List Deployments
 
 ```http
-POST /analyze
+GET /deployments
 ```
 
-Example JSON:
+### Get Active Deployment
+
+```http
+GET /deployments/active
+```
+
+### Create Rollback Plan
+
+```http
+POST /rollback/plan
+```
+
+Example request:
 
 ```json
 {
-  "resume_text": "Python developer with FastAPI, NLP, machine learning, and REST API experience.",
-  "job_description": "Looking for a Python backend developer with FastAPI, NLP, Scikit-learn, REST APIs, and cloud experience."
+  "failed_version": "v1.4.2",
+  "target_version": "v1.4.1",
+  "strategy": "immediate",
+  "reason": "Smoke tests failed and production error rate exceeded the rollback threshold.",
+  "requested_by": "github-actions"
 }
 ```
 
-### Analyze Uploaded Resume
+### Execute Rollback
 
 ```http
-POST /analyze/upload
+POST /rollback/execute
 ```
 
-Form fields:
-
-- `resume_file`: `.txt`, `.pdf`, or `.docx`
-- `job_description`: job description text
+This endpoint validates the failed version, chooses the requested or latest healthy target version, marks the failed deployment as rolled back, and returns the rollback record.
 
 ## Try With PowerShell
 
 ```powershell
-$body = @{
-  resume_text = [string]::Join("`n", (Get-Content -Path .\samples\resume.txt))
-  job_description = [string]::Join("`n", (Get-Content -Path .\samples\job_description.txt))
-} | ConvertTo-Json
+$body = Get-Content .\samples\rollback-request.json -Raw
+Invoke-RestMethod -Uri http://127.0.0.1:8000/rollback/plan -Method Post -Body $body -ContentType "application/json"
+```
 
-Invoke-RestMethod -Uri http://127.0.0.1:8000/analyze -Method Post -Body $body -ContentType "application/json"
+```powershell
+$body = Get-Content .\samples\rollback-request.json -Raw
+Invoke-RestMethod -Uri http://127.0.0.1:8000/rollback/execute -Method Post -Body $body -ContentType "application/json"
 ```
 
 ## Run Tests
@@ -101,14 +144,34 @@ Invoke-RestMethod -Uri http://127.0.0.1:8000/analyze -Method Post -Body $body -C
 pytest
 ```
 
-## How It Works
+## Run With Docker
 
-1. The API receives resume text or an uploaded resume file.
-2. The text processor extracts and cleans text by lowercasing, removing noise, and filtering stop words.
-3. The analyzer builds TF-IDF vectors for the resume and job description.
-4. Cosine similarity compares both vectors and becomes the base matching score.
-5. TF-IDF keyword extraction finds important job keywords.
-6. The analyzer separates keywords into matched and missing lists.
-7. Recommendations are generated from missing keywords and match strength.
+```powershell
+docker build -t rollback-cicd-demo .
+docker run --rm -p 8000:8000 rollback-cicd-demo
+```
 
-This is a practical starter version of an ATS-style analyzer. In production, it can be expanded with named entity recognition, section parsing, skill taxonomies, historical hiring data, and ranking across many candidates.
+## CI/CD Rollback Flow
+
+The workflow in `.github/workflows/cicd-rollback.yml` demonstrates a production-style pipeline:
+
+1. `test`: installs dependencies and runs Pytest.
+2. `build`: builds a Docker image tagged with the commit SHA.
+3. `deploy`: captures the previous stable version, deploys the new image, and runs smoke tests.
+4. `rollback`: if deployment verification fails, the workflow calls `scripts/rollback.sh` with the failed version, target version, and rollback reason.
+
+The workflow uses `echo` for Kubernetes commands so the project can run safely without a real cluster. In a production setup, replace those lines with real `kubectl`, Helm, Argo CD, or Terraform commands and configure secrets such as `KUBE_CONFIG`, registry credentials, and environment-specific URLs.
+
+## Rollback Strategies
+
+- `immediate`: quickly restores the stable image on the existing deployment.
+- `blue_green`: deploys the stable image to the alternate slot, verifies it, and switches traffic.
+- `canary`: restores a stable canary deployment, verifies it, then scales traffic back to the stable version.
+
+## Future Improvements
+
+- Persist deployment history in a database
+- Add Prometheus or Datadog metrics checks
+- Integrate Slack or email rollback notifications
+- Add approval gates for production rollbacks
+- Connect to Helm, Argo CD, or GitOps pull request rollback flows

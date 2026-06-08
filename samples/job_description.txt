@@ -1,4 +1,0 @@
-We are hiring a Python Backend Developer to build AI-powered resume analysis workflows.
-The candidate should have experience with FastAPI, REST APIs, NLP preprocessing,
-machine learning, Scikit-learn, TF-IDF, cosine similarity, resume parsing,
-keyword extraction, backend optimization, and scalable API services.

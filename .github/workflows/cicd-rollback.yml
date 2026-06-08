@@ -1,0 +1,90 @@
+name: CI/CD With Automatic Rollback
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: rollback-cicd-demo
+  DEPLOYMENT_NAME: rollback-demo
+
+jobs:
+  test:
+    name: Test application
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run unit and API tests
+        run: pytest
+
+  build:
+    name: Build container
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name != 'pull_request'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t $IMAGE_NAME:${{ github.sha }} .
+
+      - name: Save image artifact for demo deployments
+        run: docker save $IMAGE_NAME:${{ github.sha }} -o rollback-cicd-demo.tar
+
+      - name: Upload image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rollback-cicd-demo-image
+          path: rollback-cicd-demo.tar
+
+  deploy:
+    name: Deploy and smoke test
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure Kubernetes context
+        run: |
+          echo "Configure kubeconfig from secrets.KUBE_CONFIG in a real environment."
+          echo "kubectl config use-context production"
+
+      - name: Capture current stable version
+        run: |
+          echo "PREVIOUS_VERSION=v1.4.1" >> "$GITHUB_ENV"
+          echo "FAILED_VERSION=${{ github.sha }}" >> "$GITHUB_ENV"
+
+      - name: Deploy new version
+        run: |
+          echo "kubectl set image deployment/$DEPLOYMENT_NAME app=$IMAGE_NAME:${{ github.sha }} --record"
+          echo "kubectl rollout status deployment/$DEPLOYMENT_NAME --timeout=120s"
+
+      - name: Run smoke tests
+        run: |
+          echo "curl --fail https://rollback-demo.example.com/health"
+          echo "curl --fail https://rollback-demo.example.com/deployments/active"
+
+      - name: Roll back on deployment failure
+        if: failure()
+        run: |
+          bash scripts/rollback.sh "$FAILED_VERSION" "$PREVIOUS_VERSION" "GitHub Actions deployment failed"

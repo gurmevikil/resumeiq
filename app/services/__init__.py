@@ -1,1 +1,1 @@
-"""Service layer for ResumeIQ."""
+"""Service layer for rollback CI/CD automation."""

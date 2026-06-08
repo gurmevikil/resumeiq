@@ -1,1 +1,1 @@
-"""ResumeIQ application package."""
+"""Rollback CI/CD Automation application package."""
